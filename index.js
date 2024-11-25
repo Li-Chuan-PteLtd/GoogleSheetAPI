@@ -1,56 +1,49 @@
 import express from 'express';
-import sheetsRouter from './src/routes/sheets.js';
+import 'dotenv/config';
+import sheetsRouter from './routes/sheets.js';  // Adjust path as needed
 
 const app = express();
 
-// Try different ports starting from 3000
-const tryPort = async (startPort) => {
-  for (let port = startPort; port < startPort + 10; port++) {
-    try {
-      await new Promise((resolve, reject) => {
-        const server = app.listen(port)
-          .once('listening', () => {
-            console.log(`🚀 Server running at http://localhost:${port}`);
-            console.log(`📝 Try accessing: http://localhost:${port}/sheets to get sheet data`);
-            resolve();
-          })
-          .once('error', (err) => {
-            if (err.code === 'EADDRINUSE') {
-              console.log(`Port ${port} is busy, trying next port...`);
-              server.close();
-              resolve(false);
-            } else {
-              reject(err);
-            }
-          });
-      });
-      break;
-    } catch (error) {
-      console.error('Server error:', error);
-      if (port === startPort + 9) {
-        throw new Error('Could not find an available port');
-      }
-    }
-  }
-};
-
-app.use(express.json());
-
-// Add request logging middleware
+// Logging middleware
 app.use((req, res, next) => {
-  console.log(`📨 ${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-// Mount the sheets router
-app.use('/sheets', sheetsRouter);
+// CORS middleware if needed
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK' });
 });
 
-// Start the server
-tryPort(3000).catch(error => {
-  console.error('Failed to start server:', error);
+// Mount sheets router
+app.use('/sheets', sheetsRouter);
+
+// 404 handler
+app.use((req, res) => {
+  console.log(`404 Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    error: 'Not Found',
+    path: req.url 
+  });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
