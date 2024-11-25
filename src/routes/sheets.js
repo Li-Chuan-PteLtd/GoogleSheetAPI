@@ -1,5 +1,5 @@
 import express from 'express';
-import { getSheetData } from '../services/googleSheets.js';
+import { getSheetData } from '../service/googleSheet.js';
 import { SHEET_CONFIG } from '../config/sheets.js';
 
 const router = express.Router();
