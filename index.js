@@ -1,72 +1,56 @@
-const express = require('express');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
+import express from 'express';
+import sheetsRouter from './src/routes/sheets.js';
+
 const app = express();
 
-// Add CORS middleware
-app.use(function(req, res, next) {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+// Try different ports starting from 3000
+const tryPort = async (startPort) => {
+  for (let port = startPort; port < startPort + 10; port++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const server = app.listen(port)
+          .once('listening', () => {
+            console.log(`🚀 Server running at http://localhost:${port}`);
+            console.log(`📝 Try accessing: http://localhost:${port}/sheets to get sheet data`);
+            resolve();
+          })
+          .once('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+              console.log(`Port ${port} is busy, trying next port...`);
+              server.close();
+              resolve(false);
+            } else {
+              reject(err);
+            }
+          });
+      });
+      break;
+    } catch (error) {
+      console.error('Server error:', error);
+      if (port === startPort + 9) {
+        throw new Error('Could not find an available port');
+      }
+    }
+  }
+};
+
+app.use(express.json());
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`📨 ${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-// Your credentials
-const credentials = {
-  client_email: "928759356466-compute@developer.gserviceaccount.com",
-  private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC0B61v3YXiv4/+\nzMGeZ6tEdpWtbxEVaeZ1FkJxJRJiIlNNMim5jYRj6qK1aGGusM4867zb91TuMN/H\nogvNl4pZkMijEAZ2ginSv0yQO2l9VDBJh01FDxdircOirClj5lPRca2PUWh4XIeF\nkf0LGZMH3/ETcHnmUfnu69DhuZYK/3tmUvJDp2vzARZvEzXqrD7XXHs9xL0zDPHd\nxkAIashgk1ouyJJ1HMWcifyv415KempsKAO//JJGprdbhU8XZ12KammROpx/RMTh\nIjv66K0yGlqRJUIfjRqftZ34vKH3q7rKmb5Fo5+0HKBvLJ+2NpxSW08aOUS7Wq1c\nbfbvAHVlAgMBAAECggEAA+n80SdMSgs8erTXQCCPM9cDgbid8vdmnW9lShIdGF7D\nAop6J2truu5hfjctlH+J5FTYZMyM9KbBtBSSVB8c0L4Elq2lA6jodt6rhUvoCw5X\nBGo5eaxj0kSRMcqzawAZchQaIA5hipMHFpYqHbZ/IKyI5bwhclVK7UZZjWbHBn3R\nGzvV+hQwDxpZHumAK/0QBU9VWdciiEgPasar0Z7+kS/Sy1IC2jZbG5fRimYPniHM\n9e8C5MxH2mJmTAQkCVth6w2z+O4BJ02fWdYH9q1uCAuTkqQ1cQHLfVCn2/eF/yx5\nAEVJI/2v327YDGy1BVlrqXlw4//cOCVsx7DMORIG2wKBgQDkVceIqr2dxCTqkl91\nTUnyCI+27WEQP1vhUdp0Z2XHcKudhOxDQfdl7abEjV6PW8Ks6Z3osL4QcvtPr7JF\nzerHYZ2Tarask3wN1PSo1k4BFlUdHYvhYv6rpumsks2/NM18+oNlGOY1Fap5USti\n4mmkX/1bjROVUpBVziXOjrcGAwKBgQDJ16ElCd3Fzl0qDHFRuvUeanr1Rdnr4aXr\nWrSeoQXtlwxNoakh2lJS2I3pbiRDO/XrX6DsxNRTLDtCGvYm/jCBt+pjOkDYazXd\n7HUeluS/qsS9XhP1OZ/NXmdqiKFsrrh6tQ4oyzXCk2rKJkibO97A/I9LimCMOQg4\nwGVW9t2OdwKBgAvQgG2K4BrMrlhQ0I2iPSQ/2yfM6ovLq3ZiJNqHCxYht0+ENDFa\ntXFZtZpP8keaqN0HjXsfwgXZ3TUHU0MXX4GHhH6/M8qEKxQQI8Skqg6WWDsUb0tv\nMtww28BpLCorkkJYN/pAKpEumM6EK6mHK44sxVA6YXwFdKBr9TrV2ZR/AoGABDwY\n7m0BkSfePoaaTgutHuE/CSxZASDv2TtC9N0OAckcgfh1UveAqKpQd+hOrHZyl2if\nOLh8d+5CpAVqyrCkleQk78YGHERLkgdnAahKzlan4A08P/Xgi2+CnfKV6HDWAAUS\ncfqpexaas/kPpuofp07lNsGFewurR32J4sQ1K8sCgYBYrNtlcvOZxXib7paVdktm\naJTCFTCnaD8oMS/86+XuT0dGiGH68xOXajNK5aJR4FdCrxlRAHZQppttYr2KaI0v\nuvcAQe3S1y/qeWS4yY2FISeI4x40qOmd77TBSrUN7YSR0iqqVs2uZSl6CsztoWk5\nkR01y/EULAR6+4zQL2swzQ==\n-----END PRIVATE KEY-----\n"
-};
+// Mount the sheets router
+app.use('/sheets', sheetsRouter);
 
-async function getSheetData(sheetId, sheetName) {
-  try {
-    const doc = new GoogleSpreadsheet(sheetId);
-    
-    // Authenticate with the Google Sheets API
-    await doc.useServiceAccountAuth(credentials);
-    
-    // Load the document properties
-    await doc.loadInfo();
-    
-    // Get the specific sheet
-    const sheet = doc.sheetsByTitle[sheetName];
-    if (!sheet) {
-      throw new Error(`Sheet "${sheetName}" not found`);
-    }
-    
-    // Load the rows
-    const rows = await sheet.getRows();
-    
-    // Convert rows to plain objects
-    return rows.map(row => row.toObject());
-  } catch (error) {
-    console.error('Error accessing spreadsheet:', error);
-    throw error;
-  }
-}
-
-// Routes
-app.get('/', (req, res) => {
-  res.send('Google Sheets API is running');
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK' });
 });
 
-app.get('/sheets', async (req, res) => {
-  try {
-    const sheetId = req.query.sheetId || '1HkPIjBIwxylJlMp1LfGDVw597EjIQ1SgknZ-ymyk57Y';
-    const sheetName = req.query.sheetName || 'CR3';
-    
-    const data = await getSheetData(sheetId, sheetName);
-    res.json({ success: true, data });
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      path: req.path,
-      sheetId: req.query.sheetId,
-      sheetName: req.query.sheetName
-    });
-  }
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Start the server
+tryPort(3000).catch(error => {
+  console.error('Failed to start server:', error);
 });
