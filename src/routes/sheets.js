@@ -1,35 +1,44 @@
 import express from 'express';
-import { google } from 'googleapis';
+import { GoogleSpreadsheet } from 'google-spreadsheet';
 
 const router = express.Router();
 
-// Initialize Google Sheets API client
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  },
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-});
-
-// Create Google Sheets instance
-const sheets = google.sheets({ version: 'v4' });
-
 router.get('/', async (req, res) => {
   try {
-    // Get auth client
-    const authClient = await auth.getClient();
+    // Initialize the sheet
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_SHEET_ID);
+
+    // Authenticate
+    await doc.useServiceAccountAuth({
+      client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    });
+
+    // Load the document properties and sheets
+    await doc.loadInfo();
+
+    // Get the sheet named 'CR3' or the first sheet if CR3 doesn't exist
+    const sheet = doc.sheetsByTitle['CR3'] || doc.sheetsByIndex[0];
     
-    // Get the sheet data
-    const response = await sheets.spreadsheets.values.get({
-      auth: authClient,
-      spreadsheetId: process.env.GOOGLE_SHEETS_SHEET_ID,
-      range: req.query.range || 'CR3!A:C', // Using CR3 as the sheet name from your error
+    // Load all rows
+    const rows = await sheet.getRows();
+
+    // Convert rows to a more manageable format
+    const data = rows.map(row => {
+      // Get the header row (column titles)
+      const headers = sheet.headerValues;
+      let rowData = {};
+      headers.forEach(header => {
+        rowData[header] = row[header];
+      });
+      return rowData;
     });
 
     res.json({
       status: 'success',
-      data: response.data.values
+      sheetTitle: sheet.title,
+      rowCount: rows.length,
+      data: data
     });
 
   } catch (error) {
@@ -38,8 +47,7 @@ router.get('/', async (req, res) => {
       error: error.message,
       timestamp: new Date().toISOString(),
       path: req.path,
-      sheetId: process.env.GOOGLE_SHEETS_SHEET_ID,
-      sheetName: req.query.range || 'CR3'
+      sheetId: process.env.GOOGLE_SHEETS_SHEET_ID
     });
   }
 });
@@ -47,12 +55,26 @@ router.get('/', async (req, res) => {
 // Add a test endpoint to verify credentials
 router.get('/test', async (req, res) => {
   try {
-    const authClient = await auth.getClient();
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_SHEET_ID);
+    
+    await doc.useServiceAccountAuth({
+      client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    });
+
+    await doc.loadInfo();
+
     res.json({
       status: 'success',
       message: 'Authentication successful',
-      clientEmail: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
-      sheetId: process.env.GOOGLE_SHEETS_SHEET_ID
+      documentTitle: doc.title,
+      sheetCount: doc.sheetCount,
+      sheets: doc.sheetsByIndex.map(sheet => ({
+        title: sheet.title,
+        index: sheet.index,
+        rowCount: sheet.rowCount,
+        columnCount: sheet.columnCount
+      }))
     });
   } catch (error) {
     res.status(500).json({
