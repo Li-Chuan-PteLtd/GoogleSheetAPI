@@ -1,7 +1,6 @@
 const express = require('express');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const dotenv = require('dotenv');
-
 dotenv.config();
 
 const app = express();
@@ -18,6 +17,7 @@ app.get('/', (req, res) => {
   });
 });
 
+// Sheet data route
 app.get('/sheet-data', async (req, res) => {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID);
@@ -35,24 +35,14 @@ app.get('/sheet-data', async (req, res) => {
     res.json(rows.map(row => row._rawData));
   } catch (error) {
     console.error('Error fetching sheet data:', error);
-    res.status(500).json({ error: 'Failed to fetch sheet data', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to fetch sheet data', 
+      details: error.message,
+      stack: error.stack 
+    });
   }
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-app.get('/sheet-data', async (req, res) => {
-  try {
-    // Your existing code to fetch the sheet data
-    const rows = await sheet.getRows();
-    res.json(rows.map(row => row._rawData));
-  } catch (error) {
-    console.error('Error fetching sheet data:', error);
-    console.error('Full error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      // Add any other relevant error properties
-    });
