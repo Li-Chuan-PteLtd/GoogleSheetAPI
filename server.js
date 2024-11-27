@@ -42,3 +42,29 @@ app.get('/sheet-data', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+app.get('/sheet-data', async (req, res) => {
+  try {
+    // Your existing code to fetch the sheet data
+    const rows = await sheet.getRows();
+    res.json(rows.map(row => row._rawData));
+  } catch (error) {
+    console.error('Error fetching sheet data:', error);
+    console.error('Full error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      // Add any other relevant error properties
+    });
+    res.status(500).json({
+      error: 'Failed to fetch sheet data',
+      details: error.message,
+      fullError: {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        // Add any other relevant error properties
+      }
+    });
+  }
+});
